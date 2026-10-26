@@ -1,6 +1,6 @@
 {
   "name": "pdv-amanda",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Sistema de PDV para loja de bairro — vendas, estoque, caixa e crediário",
   "private": true,
   "type": "module",

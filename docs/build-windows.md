@@ -6,6 +6,20 @@ npm run dist
 
 Saída: `dist/Sistema de Vendas <versão> - instalador.exe` (NSIS, ~106 MB).
 
+A versão atual é **0.2.0**. Esta configuração gera o instalador de uso normal,
+com a identidade original do aplicativo e `pdvDemonstracao: false`.
+Não execute o instalador durante a validação para evitar abrir o banco da loja.
+Confira o conteúdo sem instalar:
+
+```bash
+node testes/verificarInstalador.cjs
+```
+
+A configuração `electron-builder-fiado-demo.yml` continua separada e serve
+somente para demonstrações com dados fictícios. Mudanças de código ficam na
+branch `feature/controle-fiado`; para atualizar o aplicativo instalado é preciso
+gerar e instalar uma nova versão.
+
 ## Duas pedras no caminho, já contornadas
 
 ### 1. `node-gyp failed to rebuild better-sqlite3`

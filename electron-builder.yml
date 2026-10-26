@@ -1,6 +1,8 @@
 appId: com.pdvamanda.app
 productName: Sistema de Vendas
 copyright: PDV-Amanda
+extraMetadata:
+  pdvDemonstracao: false
 
 directories:
   output: dist

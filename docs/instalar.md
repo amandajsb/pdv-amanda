@@ -6,7 +6,16 @@ Leva uns 2 minutos. Não precisa de senha de administrador.
 
 ## 1. Baixar
 
-Baixe o arquivo **`Sistema de Vendas 0.1.0 - instalador.exe`**.
+Use o arquivo **`Sistema de Vendas 0.2.0 - instalador.exe`**.
+
+Esta é a versão de uso normal, com todas as melhorias do controle de fiado.
+Não é a demonstração e não inclui clientes, produtos ou bancos de teste.
+
+Se já usa o programa instalado, antes de atualizar faça **Ajustes → Fazer
+backup agora** e feche o programa. Instale por cima da versão anterior, usando
+o mesmo usuário do Windows. Na primeira abertura, as migrações atualizam a
+estrutura do banco existente, preservando os registros. Os dados dos testes
+na demonstração ficam separados e não são importados para a loja.
 
 Ele tem cerca de 107 MB. Se o navegador perguntar se quer mesmo manter o
 arquivo, responda que sim — ele avisa isso para qualquer programa baixado.
@@ -65,15 +74,18 @@ Sugestão de roteiro para o primeiro dia:
 
 ---
 
-## O que ainda não está pronto
+## Funcionalidades disponíveis e limites
 
-Para você saber o que esperar nesta primeira versão:
+Para você saber o que esperar nesta versão:
 
 - **Não imprime o comprovante ainda.** A venda é registrada, mas o cupom em
   papel vem na próxima entrega.
-- **Toda venda entra como dinheiro.** Ainda não dá para separar PIX, cartão
-  ou calcular troco.
-- **Não tem fechamento de caixa nem fiado.**
+- As vendas aceitam dinheiro, PIX, débito, crédito ou fiado integral.
+  Dinheiro tem cálculo de troco.
+- O fiado inclui cadastro e busca de clientes, vencimento opcional,
+  recebimentos parciais ou totais, distribuição entre compras e histórico dos produtos.
+- **O fechamento completo das vendas normais ainda não está disponível.**
+  A sessão disponível controla somente recebimentos de fiado.
 - **O comprovante é não-fiscal.** Não substitui nota fiscal — veja o
   [manual](manual-do-usuario.md).
 
