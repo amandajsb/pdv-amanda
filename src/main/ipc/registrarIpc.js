@@ -11,6 +11,8 @@ import * as vendaServico from '../servicos/vendaServico.js';
 import * as comandasRepo from '../repos/comandasRepo.js';
 import * as comandaServico from '../servicos/comandaServico.js';
 import * as fornecedoresRepo from '../repos/fornecedoresRepo.js';
+import * as clientesRepo from '../repos/clientesRepo.js';
+import * as fiadoServico from '../servicos/fiadoServico.js';
 import { importar } from '../servicos/importacaoServico.js';
 import { backupAgora, ultimoBackup } from '../servicos/backupServico.js';
 import { exportarPdf } from '../servicos/pdfServico.js';
@@ -37,6 +39,16 @@ export function registrarIpc({ log = console } = {}) {
       }
     });
   };
+
+  canal('clientes:listar', (filtro) => clientesRepo.listar(filtro || {}));
+  canal('clientes:salvar', (id, dados) => clientesRepo.salvar(id, dados));
+  canal('clientes:definirAtivo', (id, ativo) => clientesRepo.definirAtivo(id, ativo));
+  canal('fiado:extrato', (clienteId) => fiadoServico.extrato(clienteId));
+  canal('fiado:receber', (entrada) => fiadoServico.receber(entrada));
+  canal('fiado:receberCliente', (entrada) => fiadoServico.receberCliente(entrada));
+  canal('fiado:caixaAtual', () => fiadoServico.caixaAtual());
+  canal('fiado:abrirCaixa', (entrada) => fiadoServico.abrirCaixa(entrada));
+  canal('fiado:fecharCaixa', (entrada) => fiadoServico.fecharCaixa(entrada));
 
   // ------------------------------ Produtos ------------------------------
   canal('produtos:listar', (filtro) => produtosRepo.listar(filtro || {}));
@@ -198,6 +210,7 @@ export function registrarIpc({ log = console } = {}) {
 
   // ------------------------------ Relatórios ----------------------------
   canal('relatorios:doPeriodo', (dataInicio, dataFim) => ({
+    fiado: relatoriosRepo.fiadoDoPeriodo(dataInicio, dataFim),
     resumo: relatoriosRepo.resumoDoPeriodo(dataInicio, dataFim),
     produtos: relatoriosRepo.produtosDoPeriodo(dataInicio, dataFim),
     formas: relatoriosRepo.porFormaPagamento(dataInicio, dataFim)
@@ -217,6 +230,7 @@ export function registrarIpc({ log = console } = {}) {
 
   // ------------------------------- Sistema ------------------------------
   canal('sistema:info', () => ({
+    demonstracao: process.argv.includes('--fiado-demo'),
     versaoApp: app.getVersion(),
     versaoElectron: process.versions.electron,
     versaoEsquema: obterBanco().pragma('user_version', { simple: true }),

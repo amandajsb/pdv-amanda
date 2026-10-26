@@ -1,0 +1,9 @@
+extends: ./electron-builder.yml
+appId: com.pdvamanda.fiado.demonstracao
+productName: PDV Amanda - Demonstracao Fiado
+directories:
+  output: dist-fiado-demo
+extraMetadata:
+  pdvDemonstracao: true
+win:
+  signAndEditExecutable: false

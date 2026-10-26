@@ -1,6 +1,11 @@
 node_modules/
 dist/
 dist-novo/
+dist-fiado-demo/
+dist-fiado-demo-atualizado/
+dist-fiado-demo-busca/
+dist-fiado-demo-saldo/
+dist-fiado-demo-clientes/
 logs/
 *.log
 *.db

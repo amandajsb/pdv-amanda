@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { chaveNomeCliente } from '../../compartilhado/formato/nomeCliente.js';
 
 const DIR_MIGRACOES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migracoes');
 
@@ -12,6 +13,9 @@ const DIR_MIGRACOES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'm
  * banco fica exatamente na versão anterior — nunca meio migrado.
  */
 export function migrar(db, { dir = DIR_MIGRACOES, log = console } = {}) {
+  // Registrar também quando não há migrações pendentes: índices e triggers usam a função.
+  db.function('nome_cliente_chave', { deterministic: true }, chaveNomeCliente);
+  db.function('texto_busca', { deterministic: true }, chaveNomeCliente);
   const versaoAtual = db.pragma('user_version', { simple: true });
   const pendentes = listarMigracoes(dir).filter((m) => m.versao > versaoAtual);
 

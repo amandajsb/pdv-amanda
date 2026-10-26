@@ -6,8 +6,10 @@ import * as telaEstoque from './telas/telaEstoque.js';
 import * as telaFornecedores from './telas/telaFornecedores.js';
 import * as telaRelatorios from './telas/telaRelatorios.js';
 import * as telaAjustes from './telas/telaAjustes.js';
+import * as telaClientes from './telas/telaClientes.js';
 
 const TELAS = {
+  clientes: telaClientes,
   vender: telaVender,
   comandas: telaComandas,
   estoque: telaEstoque,
@@ -64,11 +66,12 @@ async function iniciar() {
   telaComandas.montar();
   telaEstoque.montar();
   telaFornecedores.montar();
+  telaClientes.montar();
   telaRelatorios.montar();
   telaAjustes.montar({ aoMudar: atualizarBarraDeStatus });
 
   const info = await tentar(() => api.sistema.info(), { aoFalhar: () => {} });
-  if (info) $('#hdr-versao').textContent = `v${info.versaoApp}`;
+  if (info) $('#hdr-versao').textContent = info.demonstracao ? 'DEMONSTRAÇÃO · dados fictícios' : `v${info.versaoApp}`;
 
   await atualizarBarraDeStatus();
   trocarAba('vender');

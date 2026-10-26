@@ -97,15 +97,18 @@ conferida à mão.
 
 ## Fase 5 — Clientes e fiado
 
-- [ ] CRUD de clientes com busca por nome/CPF/telefone; `F6` na venda.
-- [ ] Forma de pagamento `fiado` → `contas_receber`, validando
-      `limite_credito_centavos`.
-- [ ] Tela Fiado: contas abertas, em atraso, saldo por cliente, extrato.
-- [ ] Recebimento total/parcial com alocação entre contas → entra no caixa.
+- [x] Cadastro, edição, inativação e busca de clientes por nome/telefone.
+- [x] Fiado integral vinculado a cliente ativo → `contas_receber`, sem limite de crédito.
+- [x] Tela Clientes / Fiado: contas, atraso, saldo por cliente e histórico.
+- [x] Recebimento parcial/total por conta ou pelo saldo do cliente, com distribuição entre compras, sessão de recebimentos e proteção contra duplicidade.
+- [x] Histórico de produtos por compra, preservando os preços e descrições da venda.
+- [ ] Atalho `F6` e pagamento misto.
 - [ ] Cupom de venda a prazo em 2 vias, com linha de assinatura e saldo devedor.
 
 *Pronto quando:* vender fiado, receber parcialmente, ver o saldo correto e o
 dinheiro aparecer no fechamento do caixa.
+
+Implementação e limites desta entrega: [Controle de Fiado](controle-fiado.md).
 
 ---
 

@@ -15,7 +15,8 @@ const FORMAS = [
  * Por ora é uma forma só por venda (sem split) — dinheiro pede valor recebido
  * pra calcular troco; as demais fecham no valor exato, sem campo extra.
  */
-export function escolherPagamento(totalCentavos) {
+export function escolherPagamento(totalCentavos, { permitirFiado = false } = {}) {
+  const formas = permitirFiado ? [...FORMAS, { forma: 'fiado', rotulo: 'Fiado · conta a receber' }] : FORMAS;
   return new Promise((resolve) => {
     let formaEscolhida = null;
     const responder = (v) => { fecharModal(); resolve(v); };
@@ -25,7 +26,7 @@ export function escolherPagamento(totalCentavos) {
       <div class="sub">Total a cobrar: ${formatarBRL(totalCentavos)}</div>
 
       <div class="grid-2">
-        ${FORMAS.map((f) => `
+        ${formas.map((f) => `
           <button class="btn btn-ghost" data-forma="${f.forma}">${f.rotulo}</button>
         `).join('')}
       </div>

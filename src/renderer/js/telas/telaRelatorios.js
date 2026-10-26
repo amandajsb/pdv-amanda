@@ -61,6 +61,12 @@ export async function renderizar() {
   if (!relatorio) return;
 
   const { resumo, produtos, formas } = relatorio;
+  const fiado = relatorio.fiado;
+  $('#rel-fiado').innerHTML = `<h3>Fiado e recebimentos</h3>
+    <p>Vendido fiado no período: <b>${formatarBRL(fiado.vendidoFiadoCentavos)}</b> (contas a receber).</p>
+    <p>Recebido de fiado no período: <b>${formatarBRL(fiado.recebidoCentavos)}</b> (pela data do recebimento).</p>
+    <p>Saldo devedor atual, de todos os períodos: <b>${formatarBRL(fiado.saldoAtualCentavos)}</b>.</p>
+    ${fiado.formas.map(f => `<span>${escapar(NOME_FORMA[f.forma] || f.forma)}: ${formatarBRL(f.total_centavos)} </span>`).join('')}`;
   $('#rel-total').textContent = formatarBRL(resumo.total_centavos);
   $('#rel-itens').textContent = formatarQtd(resumo.itens_milesimal);
   $('#rel-vendas').textContent = resumo.qtd_vendas;
@@ -374,6 +380,7 @@ function abrirEstoqueCompleto() {
 async function verVenda(id) {
   const v = await tentar(() => api.vendas.porId(id));
   if (!v) return;
+  const temFiado = v.pagamentos.some(p => p.forma === 'fiado');
 
   abrirModal(`
     <h3>Venda ${String(v.numero).padStart(6, '0')}</h3>
@@ -387,7 +394,7 @@ async function verVenda(id) {
           <span class="leader"></span>
           <span class="mono qty">${formatarQtd(Math.abs(i.qtd_milesimal))}</span>
           <span class="price">${formatarBRL(i.total_item_centavos)}</span>
-          ${v.status === 'finalizada' && i.total_item_centavos > 0
+          ${!temFiado && v.status === 'finalizada' && i.total_item_centavos > 0
             ? `<span class="rm" data-remover-item="${i.id}" data-descricao="${escapar(i.descricao)}" title="Remover item">✕</span>`
             : ''}
         </div>`).join('')}
@@ -406,8 +413,9 @@ async function verVenda(id) {
         <span class="valor">${escapar(v.cancelada_motivo ?? '')}</span></div>` : ''}
     <div class="btn-row">
       <button class="btn btn-ghost" data-r="0">Fechar</button>
-      ${v.status === 'finalizada' ? '<button class="btn btn-primary" data-r="add">Adicionar itens</button>' : ''}
+      ${!temFiado && v.status === 'finalizada' ? '<button class="btn btn-primary" data-r="add">Adicionar itens</button>' : ''}
     </div>
+    ${temFiado ? '<p>Venda fiada: consulte saldo e recebimentos na aba Clientes / Fiado. Alterações de itens estão bloqueadas.</p>' : ''}
   `, {
     aoMontar(caixa) {
       caixa.querySelector('[data-r="0"]').addEventListener('click', fecharModal);

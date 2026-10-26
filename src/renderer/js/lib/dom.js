@@ -50,6 +50,7 @@ export function toast(msg, tipo = '') {
 export function abrirModal(html, { aoMontar } = {}) {
   const fundo = $('#modal-fundo');
   const caixa = $('#modal');
+  caixa._aoEscape = null;
   caixa.innerHTML = html;
   fundo.classList.add('show');
   aoMontar?.(caixa);
@@ -93,5 +94,9 @@ document.addEventListener('keydown', (e) => {
 });
 
 $('#modal-fundo')?.addEventListener('click', (e) => {
-  if (e.target.id === 'modal-fundo') fecharModal();
+  if (e.target.id === 'modal-fundo') {
+    const fn = $('#modal')._aoEscape;
+    if (fn) fn();
+    else fecharModal();
+  }
 });

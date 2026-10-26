@@ -22,6 +22,7 @@
     <button class="tab-btn" data-tab="comandas">Comandas</button>
     <button class="tab-btn" data-tab="estoque">Estoque</button>
     <button class="tab-btn" data-tab="fornecedores">Fornecedores</button>
+    <button class="tab-btn" data-tab="clientes">Clientes / Fiado</button>
     <button class="tab-btn" data-tab="relatorios">Relatórios</button>
     <button class="tab-btn" data-tab="ajustes">Ajustes</button>
   </nav>
@@ -36,6 +37,23 @@
 </div>
 
 <main>
+  <section id="tab-clientes" class="tab">
+    <div class="card">
+      <h2>Clientes / Fiado</h2>
+      <div class="grid-2">
+        <div><label for="fi-busca">Buscar nome ou telefone</label><input id="fi-busca" type="search" placeholder="Buscar cliente"></div>
+        <div><label for="fi-filtro">Exibir</label><select id="fi-filtro"><option value="ativos">Clientes ativos</option><option value="devedores">Com saldo devedor</option><option value="vencidos">Com contas vencidas</option><option value="todos">Todos, incluindo inativos</option></select></div>
+      </div>
+      <div class="btn-row"><button id="fi-novo" class="btn btn-primary">Cadastrar cliente</button></div>
+      <div id="fi-clientes"></div>
+    </div>
+    <div class="card" id="fi-detalhe"><div class="empty-state">Selecione um cliente para consultar compras, pagamentos e saldo.</div></div>
+    <div class="card">
+      <h3>Caixa — recebimentos de fiado</h3>
+      <p class="sub">Esta sessão registra os recebimentos de fiado. O fechamento completo das vendas normais ainda não está disponível.</p>
+      <div id="fi-caixa"></div>
+    </div>
+  </section>
 
   <!-- ============================== VENDER ============================== -->
   <section id="tab-vender" class="tab active">
@@ -43,10 +61,13 @@
       <h2>Bipar mercadoria</h2>
       <div class="scan-row">
         <input id="scan-input" class="mono" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Bipe o código de barras ou digite e pressione Enter">
+               role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="scan-sugestoes"
+               placeholder="Digite o início do nome ou bipe o código de barras">
         <button class="btn btn-primary btn-compacto" data-acao="adicionar">Adicionar</button>
       </div>
+      <div id="scan-sugestoes" class="scan-sugestoes" role="listbox" aria-label="Produtos encontrados" hidden></div>
       <div class="scan-hint">
+        Digite parte do nome e escolha na lista com um clique ou com ↑ ↓ e Enter.
         O leitor funciona como um teclado: ele digita o código e aperta Enter sozinho.
         Para vender várias unidades de uma vez, digite <b>3*</b> antes do código.
       </div>
@@ -86,8 +107,9 @@
         <div class="linha"><span>Navegar itens</span><kbd>↑ ↓</kbd></div>
         <div class="linha ultima"><span>Quantidade do item</span><kbd>+ −</kbd></div>
         <p class="nota-rodape">
-          Ao finalizar, escolha a forma de pagamento (dinheiro, PIX, débito ou crédito).
-          Descontos e pagamento dividido em mais de uma forma entram numa próxima versão.
+          Ao finalizar, escolha dinheiro, PIX, débito, crédito ou fiado.
+          No fiado, selecione um cliente e informe o vencimento se desejar.
+          Pagamento dividido em mais de uma forma entra numa próxima versão.
         </p>
       </div>
     </div>
@@ -241,6 +263,7 @@
 
   <!-- ============================ RELATÓRIOS =========================== -->
   <section id="tab-relatorios" class="tab">
+    <div class="card" id="rel-fiado"></div>
     <div class="card">
       <h2>Relatório por período</h2>
       <div class="date-row">

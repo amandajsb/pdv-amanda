@@ -11,6 +11,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 const chamar = (canal) => (...args) => ipcRenderer.invoke(canal, ...args);
 
 contextBridge.exposeInMainWorld('pdv', {
+  clientes: {
+    listar: chamar('clientes:listar'),
+    salvar: chamar('clientes:salvar'),
+    definirAtivo: chamar('clientes:definirAtivo')
+  },
+  fiado: {
+    extrato: chamar('fiado:extrato'),
+    receber: chamar('fiado:receber'),
+    receberCliente: chamar('fiado:receberCliente'),
+    caixaAtual: chamar('fiado:caixaAtual'),
+    abrirCaixa: chamar('fiado:abrirCaixa'),
+    fecharCaixa: chamar('fiado:fecharCaixa')
+  },
   produtos: {
     listar: chamar('produtos:listar'),
     porId: chamar('produtos:porId'),

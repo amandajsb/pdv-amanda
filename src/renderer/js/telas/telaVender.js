@@ -1,6 +1,8 @@
 import { api, tentar, ErroApi } from '../api.js';
 import { $, escapar, aoClicar, mostrarMsg, toast, abrirModal, fecharModal, modalAberto, confirmar } from '../lib/dom.js';
 import { escolherPagamento } from '../lib/pagamento.js';
+import { escolherClienteFiado } from '../lib/fiado.js';
+import { instalarBuscaProdutos } from '../lib/buscaProdutos.js';
 import { formatarBRL, formatarQtd, paraMilesimal, paraCentavos } from '/compartilhado/formato/moeda.js';
 import { calcularTotais } from '/compartilhado/calculos/totais.js';
 import { formatarDataBR, hojeISO, agoraHora } from '/compartilhado/formato/data.js';
@@ -10,6 +12,9 @@ import { formatarDataBR, hojeISO, agoraHora } from '/compartilhado/formato/data.
 let carrinho = [];
 let selecionado = 0;
 let aoFinalizarCallback = null;
+let finalizando = false;
+let vendaPendente = null;
+let buscaProdutos = null;
 
 // Ajuste sobre o TOTAL da venda (não item a item): positivo é desconto,
 // negativo é acréscimo. Não toca no preço de nenhum produto — é uma linha à
@@ -36,21 +41,16 @@ export function montar({ aoFinalizar } = {}) {
   aoFinalizarCallback = aoFinalizar;
   const secao = $('#tab-vender');
 
-  scanInput().addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const valor = scanInput().value.trim();
-      scanInput().value = '';
-      if (valor) bipar(valor);
-    }
+  buscaProdutos = instalarBuscaProdutos({
+    campo: scanInput(), lista: $('#scan-sugestoes'), aoEscolher: adicionarAoCarrinho,
+    aoCodigo: bipar, bloqueado: () => Boolean(vendaPendente || finalizando || modalAberto())
   });
 
   aoClicar(secao, '[data-acao]', (el) => {
     const acao = el.dataset.acao;
+    if (vendaPendente && acao !== 'finalizar') { toast('Confirme novamente a venda pendente antes de alterar o carrinho.', 'err'); return; }
     if (acao === 'adicionar') {
-      const valor = scanInput().value.trim();
-      scanInput().value = '';
-      if (valor) bipar(valor);
+      buscaProdutos.confirmar();
       focarScan();
     }
     if (acao === 'cancelar-venda') cancelarVenda();
@@ -101,6 +101,7 @@ function instalarAtalhos() {
     if (!$('#tab-vender').classList.contains('active')) return;
     if (modalAberto()) return;
 
+    if (vendaPendente && e.key !== 'F8') return;
     switch (e.key) {
       case 'F2': e.preventDefault(); abrirBuscaPorNome(); break;
       case 'F3': e.preventDefault(); pedirQuantidade(); break;
@@ -134,7 +135,8 @@ function instalarAtalhos() {
  * Aceita "7891000100103" e também "3*7891000100103" — o multiplicador de
  * quantidade é memória muscular de quem opera caixa.
  */
-async function bipar(entrada) {
+async function bipar(entrada, aindaAtual = () => true) {
+  if (vendaPendente || finalizando) { toast('Conclua a confirmação da venda pendente.', 'err'); return; }
   let quantidade = 1000;
   let codigo = entrada;
   let pesoExplicito = false;
@@ -150,6 +152,9 @@ async function bipar(entrada) {
   if (achado === undefined) return;
 
   if (!achado) {
+    const sugestoes = await tentar(() => api.produtos.listar({ termo: codigo, limite: 20 }));
+    if (!aindaAtual()) return;
+    if (sugestoes?.length) { buscaProdutos.exibir(entrada, sugestoes); return; }
     mostrarMsg('#scan-msg', `Produto com código "${codigo}" não está cadastrado.`, 'err');
     oferecerCadastroRapido(codigo);
     return;
@@ -555,6 +560,8 @@ async function cancelarVenda() {
 }
 
 function limpar() {
+  clearTimeout(timerRascunho);
+  vendaPendente = null;
   carrinho = [];
   selecionado = 0;
   ajusteVendaCentavos = 0;
@@ -566,14 +573,31 @@ function limpar() {
 // ------------------------------ Finalizar -------------------------------
 
 async function finalizar() {
-  if (!carrinho.length) return;
+  if (!carrinho.length || finalizando) return;
+  buscaProdutos.fechar();
+  finalizando = true;
+  try {
+    await concluirFinalizacao();
+  } finally { finalizando = false; }
+}
+
+async function concluirFinalizacao() {
+  if (vendaPendente) {
+    const r = await enviarVendaPendente();
+    if (r !== undefined) { vendaPendente = null; limpar(); toast(`Venda ${r.numero} registrada.`); aoFinalizarCallback?.(r); }
+    return;
+  }
 
   const { descontoVenda, acrescimoCentavos } = paramsAjusteVenda();
   const totais = calcularTotais(carrinho, descontoVenda, acrescimoCentavos);
-  const pagamento = await escolherPagamento(totais.totalCentavos);
+  const pagamento = await escolherPagamento(totais.totalCentavos, { permitirFiado: true });
   if (!pagamento) { focarScan(); return; }
+  const fiado = pagamento.forma === 'fiado' ? await escolherClienteFiado(totais.totalCentavos) : {};
+  if (!fiado) return;
 
-  const r = await tentar(() => api.vendas.finalizar({
+  vendaPendente = {
+    operacaoId: crypto.randomUUID(),
+    ...fiado,
     itens: carrinho.map((i) => ({
       produtoId: i.produtoId,
       codigoBarras: i.codigoBarras,
@@ -591,14 +615,26 @@ async function finalizar() {
       recebidoCentavos: pagamento.recebidoCentavos
     }],
     totalEsperadoCentavos: totais.totalCentavos
-  }));
+  };
+  clearTimeout(timerRascunho);
+  const salvo = await tentar(() => api.vendas.rascunhoSalvar(JSON.stringify({ carrinho, ajusteVendaCentavos, vendaPendente, em: new Date().toISOString() })));
+  if (salvo === undefined) { vendaPendente = null; return; }
+  const r = await enviarVendaPendente();
 
   if (r === undefined) return;
 
+  vendaPendente = null;
   limpar();
   const troco = r.trocoCentavos ? ` (troco ${formatarBRL(r.trocoCentavos)})` : '';
   toast(`Venda ${String(r.numero).padStart(6, '0')} registrada — ${formatarBRL(r.totais.totalCentavos)}${troco}`);
   aoFinalizarCallback?.(r);
+}
+
+async function enviarVendaPendente() {
+  return tentar(() => api.vendas.finalizar(vendaPendente), { aoFalhar(e) {
+    if (e.codigo && e.codigo !== 'ERRO_INTERNO') { vendaPendente = null; salvarRascunho(); }
+    toast(e.message || 'Não houve confirmação. Use Finalizar novamente para consultar a mesma operação.', 'err');
+  } });
 }
 
 // ------------------------------ Renderização ----------------------------
@@ -663,7 +699,7 @@ function salvarRascunho() {
   clearTimeout(timerRascunho);
   timerRascunho = setTimeout(() => {
     if (!carrinho.length) return;
-    api.vendas.rascunhoSalvar(JSON.stringify({ carrinho, ajusteVendaCentavos, em: new Date().toISOString() })).catch(() => {});
+    api.vendas.rascunhoSalvar(JSON.stringify({ carrinho, ajusteVendaCentavos, vendaPendente, em: new Date().toISOString() })).catch(() => {});
   }, 300);
 }
 
@@ -691,6 +727,7 @@ export async function recuperarRascunho() {
     carrinho = dados.carrinho;
     selecionado = 0;
     ajusteVendaCentavos = dados.ajusteVendaCentavos || 0;
+    vendaPendente = dados.vendaPendente || null;
     renderizar();
   } else {
     await tentar(() => api.vendas.rascunhoLimpar(), { aoFalhar: () => {} });

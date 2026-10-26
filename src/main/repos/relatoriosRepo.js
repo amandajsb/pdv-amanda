@@ -1,5 +1,15 @@
 import { obterBanco } from '../db/conexao.js';
 
+export function fiadoDoPeriodo(dataInicio, dataFim) {
+  const db = obterBanco();
+  const vendido = db.prepare(`SELECT coalesce(SUM(p.valor_centavos),0) valor FROM pagamentos p
+    JOIN vendas v ON v.id=p.venda_id WHERE p.forma='fiado' AND v.status='finalizada' AND v.data BETWEEN ? AND ?`).get(dataInicio,dataFim).valor;
+  const formas = db.prepare(`SELECT forma, SUM(valor_centavos) total_centavos FROM contas_receber_pagamentos
+    WHERE substr(criado_em,1,10) BETWEEN ? AND ? GROUP BY forma`).all(dataInicio,dataFim);
+  const saldo = db.prepare(`SELECT coalesce(SUM(valor_centavos-valor_pago_centavos),0) valor FROM contas_receber WHERE status IN ('aberta','parcial')`).get().valor;
+  return { vendidoFiadoCentavos: vendido, recebidoCentavos: formas.reduce((s,f) => s+f.total_centavos,0), saldoAtualCentavos: saldo, formas };
+}
+
 // Toda agregação é GROUP BY no SQLite. O protótipo fazia reduce sobre um array
 // de todas as vendas já feitas; com dois anos de histórico isso trava a UI a
 // cada troca de data.

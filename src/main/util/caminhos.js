@@ -21,6 +21,7 @@ export function caminhoBanco() {
  * o que resolve metade do risco de perder tudo num HD que morreu.
  */
 export function pastaPdv() {
+  if (process.argv.includes('--fiado-demo')) return path.join(app.getPath('userData'), 'arquivos-demo');
   const oneDrive = process.env.OneDrive || path.join(os.homedir(), 'OneDrive');
   const base = fs.existsSync(oneDrive) ? oneDrive : app.getPath('documents');
   return path.join(base, 'PDV');

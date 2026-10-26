@@ -78,6 +78,8 @@ export function verificarInvariantes() {
     .prepare('SELECT id, valor_centavos, valor_pago_centavos, status FROM contas_receber')
     .all();
   for (const c of contas) {
+    const soma = db.prepare('SELECT coalesce(SUM(valor_centavos),0) valor FROM contas_receber_pagamentos WHERE conta_id=?').get(c.id).valor;
+    if (c.valor_pago_centavos !== soma) violacoes.push(`[5] Conta ${c.id}: acumulado=${c.valor_pago_centavos} recebimentos=${soma}`);
     if (c.valor_pago_centavos > c.valor_centavos) {
       violacoes.push(`[5] Conta ${c.id}: pago=${c.valor_pago_centavos} > valor=${c.valor_centavos}`);
     }
@@ -85,6 +87,17 @@ export function verificarInvariantes() {
       violacoes.push(`[5] Conta ${c.id}: status=${c.status} mas pago=${c.valor_pago_centavos}/${c.valor_centavos}`);
     }
   }
+
+  const recebimentosSemCaixa = db.prepare(`SELECT p.id FROM contas_receber_pagamentos p
+    LEFT JOIN caixa_movimentos m ON m.recebimento_id=p.id
+    WHERE p.operacao_id IS NOT NULL GROUP BY p.id
+    HAVING count(m.id) <> 1 OR SUM(m.valor_centavos) <> p.valor_centavos`).all();
+  for (const p of recebimentosSemCaixa) violacoes.push(`[6] Recebimento ${p.id}: movimento de caixa inconsistente`);
+  const grupos = db.prepare(`SELECT g.id,g.valor_centavos,g.troco_centavos,
+    coalesce(SUM(p.valor_centavos),0) aplicado,coalesce(SUM(p.troco_centavos),0) troco
+    FROM recebimentos_fiado g LEFT JOIN contas_receber_pagamentos p ON p.recebimento_grupo_id=g.id GROUP BY g.id`).all();
+  for(const g of grupos) if(g.aplicado!==g.valor_centavos || g.troco!==g.troco_centavos)
+    violacoes.push(`[7] Recebimento do cliente ${g.id}: rateio ou troco inconsistente`);
 
   return violacoes;
 }

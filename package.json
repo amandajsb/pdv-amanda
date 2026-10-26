@@ -10,6 +10,9 @@
     "dev": "electron . --dev",
     "test": "node testes/rodar.js",
     "smoke": "electron testes/e2e/fumaca.js",
+    "smoke:fiado": "electron testes/e2e/fiado.js",
+    "smoke:busca": "electron testes/e2e/buscaProdutos.js",
+    "demo:build": "electron-builder --win --dir --config electron-builder-fiado-demo.yml",
     "dist": "electron-builder --win"
   },
   "//nota-nativa": "better-sqlite3 13 publica prebuilds N-API por plataforma: não precisa de compilador nem de electron-rebuild. Por isso NÃO existe postinstall com 'electron-builder install-app-deps' aqui — ele exigiria Visual Studio Build Tools e quebraria o npm install.",

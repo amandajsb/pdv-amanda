@@ -59,7 +59,7 @@ export function registrarProtocolo({ log = console } = {}) {
   });
 }
 
-export function criarJanela({ dev = false, log = console } = {}) {
+export function criarJanela({ dev = false, log = console, mostrar = true } = {}) {
   // Em produção não existe menu: F5 e Ctrl+R recarregariam o app e apagariam
   // a venda em andamento.
   if (!dev) Menu.setApplicationMenu(null);
@@ -107,6 +107,7 @@ export function criarJanela({ dev = false, log = console } = {}) {
   });
 
   win.once('ready-to-show', () => {
+    if (!mostrar) return;
     win.maximize();
     win.show();
   });

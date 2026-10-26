@@ -1,6 +1,7 @@
 import { obterBanco } from '../db/conexao.js';
 import { agoraTimestamp } from '../../compartilhado/formato/data.js';
 import { variacoesCodigo, ehEanValido } from '../../compartilhado/calculos/ean.js';
+import { normalizarTextoBusca } from '../../compartilhado/formato/busca.js';
 
 const CAMPOS = `p.id, p.sku, p.nome, p.descricao, p.unidade, p.preco_centavos,
                 p.custo_centavos, p.estoque_milesimal, p.estoque_minimo_milesimal,
@@ -50,7 +51,7 @@ export function buscarPorCodigo(codigoBipado) {
 
 /** Busca por nome ou código, para a tela de estoque e o F2 da venda. */
 export function listar({ termo = '', apenasAtivos = true, limite = 200 } = {}) {
-  const like = `%${String(termo).trim().toLowerCase()}%`;
+  const like = `%${normalizarTextoBusca(termo).replace(/[!%_]/g, '!$&')}%`;
   return obterBanco()
     .prepare(
       `SELECT ${CAMPOS},
@@ -61,10 +62,10 @@ export function listar({ termo = '', apenasAtivos = true, limite = 200 } = {}) {
          LEFT JOIN fornecedores f ON f.id = p.fornecedor_id
         WHERE (? = 0 OR p.ativo = 1)
           AND (? = ''
-               OR lower(p.nome) LIKE ?
-               OR lower(coalesce(p.sku,'')) LIKE ?
+               OR texto_busca(p.nome) LIKE ? ESCAPE '!'
+               OR texto_busca(coalesce(p.sku,'')) LIKE ? ESCAPE '!'
                OR EXISTS (SELECT 1 FROM produto_codigos c
-                           WHERE c.produto_id = p.id AND lower(c.codigo) LIKE ?))
+                           WHERE c.produto_id = p.id AND texto_busca(c.codigo) LIKE ? ESCAPE '!'))
         ORDER BY p.nome
         LIMIT ?`
     )

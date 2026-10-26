@@ -82,9 +82,17 @@ normalização UPC-A/EAN-13, venda com baixa de estoque em transação atômica,
 cancelamento com reversão, relatórios em SQL, importação do sistema anterior,
 backup e diagnóstico.
 
-Toda venda é registrada como **dinheiro pelo valor exato**. Formas de
-pagamento, troco, descontos, impressão do comprovante, fechamento de caixa e
-fiado são as fases seguintes — as tabelas do banco já existem para todos eles.
+Vendas aceitam dinheiro, PIX, débito, crédito ou fiado integral, com troco e
+ajustes de valor. A busca lista produtos pelas primeiras letras do nome.
+
+O controle de fiado inclui cadastro e busca de clientes, bloqueio de nomes
+repetidos, vencimento opcional, recebimentos parciais ou totais por conta ou
+pelo saldo do cliente, distribuição entre compras e histórico dos produtos.
+Recebimentos não movimentam estoque; cancelamento após recebimentos é bloqueado.
+Detalhes e limites em **[docs/controle-fiado.md](docs/controle-fiado.md)**.
+
+A sessão de caixa disponível controla recebimentos de fiado. O fechamento
+completo das vendas normais e a impressão do comprovante continuam pendentes.
 
 O que vem a seguir, em ordem, está em
 **[docs/proximos-passos.md](docs/proximos-passos.md)**.

@@ -7,6 +7,7 @@ import * as configRepo from '../repos/configRepo.js';
 import { calcularTotais, calcularPagamento } from '../../compartilhado/calculos/totais.js';
 import { agoraTimestamp, agoraHora, hojeISO } from '../../compartilhado/formato/data.js';
 import { ErroNegocio, CODIGOS } from '../util/erros.js';
+import { exigir, validarOperacao, validarVencimento, hashOperacao } from './operacao.js';
 
 /**
  * Finaliza uma venda. Tudo numa única transação: ou a venda inteira existe
@@ -22,12 +23,40 @@ import { ErroNegocio, CODIGOS } from '../util/erros.js';
  */
 export function finalizar(entrada, { log = console } = {}) {
   const db = obterBanco();
+  const hash = entrada?.operacaoId ? hashOperacao(entrada) : null;
+  if (entrada?.operacaoId) validarOperacao(entrada.operacaoId);
 
   if (!entrada?.itens?.length) {
     throw new ErroNegocio(CODIGOS.CARRINHO_VAZIO, 'Não há itens para finalizar a venda.');
   }
 
   return db.transaction(() => {
+    if (entrada.operacaoId) {
+      const anterior = db.prepare('SELECT * FROM vendas WHERE uuid=?').get(entrada.operacaoId);
+      if (anterior) {
+        exigir(anterior.requisicao_hash === hash, 'A operação já foi usada com outros dados.');
+        return { vendaId: anterior.id, numero: anterior.numero, totais: { totalCentavos: anterior.total_centavos }, trocoCentavos: anterior.troco_centavos, repetido: true };
+      }
+    }
+    const fiado = entrada.pagamentos?.some(p => p.forma === 'fiado');
+    let vencimento = null;
+    if (fiado) {
+      validarOperacao(entrada.operacaoId);
+      exigir(entrada.pagamentos.length === 1, 'Nesta versão, a venda fiada deve ser integral.');
+      exigir(Number.isSafeInteger(entrada.clienteId), 'Selecione um cliente para vender fiado.');
+      const cliente = db.prepare('SELECT ativo FROM clientes WHERE id=?').get(entrada.clienteId);
+      exigir(cliente?.ativo === 1, 'Selecione um cliente ativo para vender fiado.');
+      vencimento = validarVencimento(entrada.vencimento);
+    }
+    for (const it of entrada.itens) {
+      exigir(Number.isSafeInteger(it.qtdMilesimal) && it.qtdMilesimal > 0, 'Quantidade inválida.');
+      exigir(it.precoUnitCentavos == null || (Number.isSafeInteger(it.precoUnitCentavos) && it.precoUnitCentavos >= 0), 'Preço inválido.');
+    }
+    for (const p of entrada.pagamentos || []) {
+      exigir(['dinheiro','pix','debito','credito','fiado'].includes(p.forma), 'Forma de pagamento inválida.');
+      exigir(Number.isSafeInteger(p.valorCentavos) && p.valorCentavos >= 0, 'Valor de pagamento inválido.');
+      exigir(p.recebidoCentavos == null || (p.forma === 'dinheiro' && Number.isSafeInteger(p.recebidoCentavos) && p.recebidoCentavos >= p.valorCentavos), 'Valor recebido inválido.');
+    }
     // 1. Resolver cada item contra o cadastro atual e montar o snapshot.
     const itens = entrada.itens.map((it, idx) => {
       const p = produtosRepo.porId(it.produtoId);
@@ -51,6 +80,7 @@ export function finalizar(entrada, { log = console } = {}) {
 
     // 2. Recalcular os totais aqui, no main.
     const totais = calcularTotais(itens, entrada.descontoVenda, entrada.acrescimoCentavos);
+    exigir(Number.isSafeInteger(totais.totalCentavos) && (!fiado || totais.totalCentavos > 0), 'Total da venda inválido.');
     if (
       entrada.totalEsperadoCentavos != null &&
       entrada.totalEsperadoCentavos !== totais.totalCentavos
@@ -84,8 +114,11 @@ export function finalizar(entrada, { log = console } = {}) {
     // 4. Conferir estoque antes de gravar qualquer coisa.
     const permiteNegativo = configRepo.obterBooleano('estoque_negativo_permitido');
     if (!permiteNegativo) {
+      const quantidades = new Map();
       for (const it of itens) {
-        if (it.produto.controla_estoque && it.produto.estoque_milesimal < it.qtdMilesimal) {
+        const quantidade = (quantidades.get(it.produto.id) || 0) + it.qtdMilesimal;
+        quantidades.set(it.produto.id, quantidade);
+        if (it.produto.controla_estoque && it.produto.estoque_milesimal < quantidade) {
           throw new ErroNegocio(
             CODIGOS.ESTOQUE_INSUFICIENTE,
             `"${it.produto.nome}" não tem estoque suficiente.`,
@@ -100,7 +133,7 @@ export function finalizar(entrada, { log = console } = {}) {
     const numero = vendasRepo.proximoNumero();
     const vendaId = vendasRepo.inserirVenda({
       numero,
-      uuid: randomUUID(),
+      uuid: entrada.operacaoId || randomUUID(),
       sessao_id: entrada.sessaoId ?? null,
       cliente_id: entrada.clienteId ?? null,
       status: 'finalizada',
@@ -164,6 +197,13 @@ export function finalizar(entrada, { log = console } = {}) {
       });
     }
 
+    db.prepare('UPDATE vendas SET requisicao_hash=? WHERE id=?').run(hash, vendaId);
+    if (fiado) {
+      db.prepare(`INSERT INTO contas_receber (cliente_id,venda_id,valor_centavos,status,vencimento,descricao,criado_em)
+        VALUES (?,?,?,'aberta',?,?,?)`).run(entrada.clienteId, vendaId, totais.totalCentavos,
+          vencimento, `Venda ${numero}`, ts);
+    }
+
     // 8. A venda foi gravada: o rascunho de recuperação não serve mais.
     vendasRepo.limparRascunho();
 
@@ -189,6 +229,8 @@ export function adicionarItens(vendaId, { itens, pagamentos, operador }, { log =
   return db.transaction(() => {
     const venda = vendasRepo.porId(vendaId);
     if (!venda) throw new ErroNegocio(CODIGOS.VENDA_NAO_ENCONTRADA, 'Venda não encontrada.');
+    protegerAlteracaoFiado(db, vendaId);
+    exigir(!(pagamentos || []).some(p => p.forma === 'fiado'), 'Registre uma nova venda para adicionar fiado.');
     if (venda.status === 'cancelada') {
       throw new ErroNegocio(CODIGOS.VENDA_JA_CANCELADA, 'Não é possível adicionar itens a uma venda cancelada.');
     }
@@ -318,6 +360,8 @@ export function removerItem(vendaId, itemId, { motivo, operador, formaReembolso 
   return db.transaction(() => {
     const venda = vendasRepo.porId(vendaId);
     if (!venda) throw new ErroNegocio(CODIGOS.VENDA_NAO_ENCONTRADA, 'Venda não encontrada.');
+    protegerAlteracaoFiado(db, vendaId);
+    exigir(formaReembolso !== 'fiado', 'Fiado não é forma de reembolso.');
     if (venda.status === 'cancelada') {
       throw new ErroNegocio(CODIGOS.VENDA_JA_CANCELADA, 'Não é possível remover itens de uma venda cancelada.');
     }
@@ -394,6 +438,19 @@ export function cancelar({ vendaId, motivo, por, sessaoAtualId = null }, { log =
       throw new ErroNegocio(CODIGOS.VENDA_JA_CANCELADA, `A venda ${venda.numero} já está cancelada.`);
     }
 
+    const conta = db.prepare('SELECT * FROM contas_receber WHERE venda_id=?').get(vendaId);
+    const temFiado = venda.pagamentos.some(p => p.forma === 'fiado');
+    exigir(!temFiado || conta, 'A venda fiada não tem conta vinculada. Solicite conferência.');
+    exigir(!conta || (temFiado && conta.cliente_id === venda.cliente_id), 'Conta e venda inconsistentes. Solicite conferência.');
+    if (conta) {
+      const recebido = db.prepare('SELECT count(*) n FROM contas_receber_pagamentos WHERE conta_id=?').get(conta.id).n;
+      exigir(!recebido && conta.valor_pago_centavos === 0 && !venda.pagamentos.some(p => p.forma !== 'fiado' && p.valor_centavos > 0),
+        'Esta venda já recebeu pagamentos. O cancelamento exige devolução auditada e está bloqueado nesta versão.', CODIGOS.CONTA_COM_PAGAMENTO);
+      exigir(conta.status === 'aberta', 'Situação da conta incompatível com o cancelamento.');
+      db.prepare(`UPDATE contas_receber SET status='cancelada',cancelada_em=?,cancelada_por=?,cancelada_motivo=? WHERE id=?`)
+        .run(agoraTimestamp(), por ?? venda.operador, String(motivo).trim(), conta.id);
+    }
+
     for (const item of venda.itens) {
       if (item.produto_id) {
         estoqueRepo.lancar(item.produto_id, 'estorno_venda', item.qtd_milesimal, {
@@ -415,4 +472,10 @@ export function cancelar({ vendaId, motivo, por, sessaoAtualId = null }, { log =
     log.info?.(`Venda ${venda.numero} cancelada por ${por ?? 'desconhecido'}: ${motivo}`);
     return { vendaId, numero: venda.numero, totalCentavos: venda.total_centavos };
   })();
+}
+
+function protegerAlteracaoFiado(db, vendaId) {
+  exigir(!db.prepare('SELECT id FROM contas_receber WHERE venda_id=?').get(vendaId)
+    && !db.prepare("SELECT id FROM pagamentos WHERE venda_id=? AND forma='fiado'").get(vendaId),
+    'Não é possível alterar itens de venda fiada. Registre uma nova venda ou cancele a venda sem recebimentos.');
 }
